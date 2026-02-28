@@ -1,6 +1,6 @@
 """
-collect.py — fetch metadata from Crossref by ISSN + date window,
-filter by keywords, look up OA PDFs via Unpaywall, download where possible.
+collect.py — fetch metadata from OpenAlex by ISSN + date window,
+filter by keywords (title + abstract), look up OA PDFs via Unpaywall, download where possible.
 """
 import csv, json, os, re, time
 from datetime import datetime
@@ -16,6 +16,7 @@ PAYWALLED_TXT = os.path.join(ROOT, "results", "paywalled.txt")
 PDF_DIR       = os.path.join(ROOT, "pdfs")
 
 CROSSREF_API  = "https://api.crossref.org/works"
+OPENALEX_API  = "https://api.openalex.org/works"
 UNPAYWALL_API = "https://api.unpaywall.org/v2"
 
 # 重要：换成你自己的邮箱（用于 Crossref polite pool + Unpaywall API）
@@ -68,6 +69,45 @@ def crossref_fetch_by_issn(issn, date_from, date_to, rows=200, max_items=5000):
             break
         time.sleep(0.2)  # be polite
     return items
+
+def openalex_fetch_by_issn(issn, date_from, date_to, per_page=200, max_pages=200):
+    """
+    Fetch works from OpenAlex filtered by journal ISSN and publication date window.
+    """
+    items = []
+    cursor = "*"
+    for _ in range(max_pages):
+        params = {
+            "filter": f"primary_location.source.issn:{issn},from_publication_date:{date_from},to_publication_date:{date_to}",
+            "per-page": per_page,
+            "cursor": cursor,
+            "mailto": MAILTO,
+        }
+        r = requests.get(OPENALEX_API, params=params, timeout=60)
+        r.raise_for_status()
+        msg = r.json()
+        batch = msg.get("results", [])
+        if not batch:
+            break
+        items.extend(batch)
+        cursor = msg.get("meta", {}).get("next_cursor")
+        if not cursor:
+            break
+        time.sleep(0.2)
+    return items
+
+def reconstruct_openalex_abstract(inv_idx):
+    """
+    inv_idx: {"word": [pos1, pos2, ...], ...}
+    Reconstructs the abstract from OpenAlex's inverted index format.
+    """
+    if not inv_idx:
+        return ""
+    positions = {}
+    for word, pos_list in inv_idx.items():
+        for p in pos_list:
+            positions[p] = word
+    return " ".join(positions[p] for p in sorted(positions))
 
 def unpaywall_lookup(doi):
     # Unpaywall: /v2/{doi}?email=...
@@ -123,25 +163,26 @@ def main():
         tier  = j.get("tier", "").strip()
         jname = j.get("journal_name", "").strip()
         issn  = (j.get("issn_online") or "").strip() or (j.get("issn_print") or "").strip()
-        print(f"[Crossref] {jname} ({issn}) ...")
-        items = crossref_fetch_by_issn(issn, date_from, date_to)
+        print(f"[OpenAlex] {jname} ({issn}) ...")
+        items = openalex_fetch_by_issn(issn, date_from, date_to)
 
-        for it in items:
-            doi       = it.get("DOI")
-            title     = " ".join(it.get("title") or []).strip()
-            container = " ".join(it.get("container-title") or []).strip()
-            year      = pick_year(it)
+        for w in items:
+            doi       = (w.get("doi") or "").replace("https://doi.org/", "").strip()
+            title     = (w.get("title") or "").strip()
+            year      = w.get("publication_year") or ""
+            abstract  = reconstruct_openalex_abstract(w.get("abstract_inverted_index"))
+            container = (w.get("primary_location") or {}).get("source", {}).get("display_name", "") or ""
 
-            # keyword filter on title + container (Crossref abstracts often missing)
-            text_for_filter = f"{title} {container}"
+            # keyword filter on title + abstract (OpenAlex provides both)
+            text_for_filter = f"{title}\n{abstract}"
             if not keyword_hit(text_for_filter, kws):
                 continue
 
             # Unpaywall: find OA PDF
-            oa       = unpaywall_lookup(doi) if doi else None
-            is_oa    = bool(oa and oa.get("is_oa"))
-            best     = (oa or {}).get("best_oa_location") or {}
-            pdf_url  = best.get("url_for_pdf")   # preferred direct PDF when present
+            oa          = unpaywall_lookup(doi) if doi else None
+            is_oa       = bool(oa and oa.get("is_oa"))
+            best        = (oa or {}).get("best_oa_location") or {}
+            pdf_url     = best.get("url_for_pdf")
             landing_url = best.get("url") or (oa or {}).get("doi_url")
 
             pdf_path = ""
@@ -159,24 +200,24 @@ def main():
             if (not pdf_path) and (not pdf_url):
                 paywalled.append(doi)
 
-            authors = it.get("author") or []
+            authorships = w.get("authorships") or []
             author_str = "; ".join(
-                [(" ".join([a.get("given","").strip(), a.get("family","").strip()]).strip())
-                 for a in authors][:6]
+                [(a.get("author", {}).get("display_name") or "").strip()
+                 for a in authorships][:6]
             )
 
             out_rows.append({
-                "tier":           tier,
-                "journal":        jname,
+                "tier":            tier,
+                "journal":         jname,
                 "container_title": container,
-                "year":           year or "",
-                "title":          title,
-                "authors":        author_str,
-                "doi":            doi or "",
-                "is_oa":          "1" if is_oa else "0",
-                "oa_pdf_url":     pdf_url or "",
-                "landing_url":    landing_url or "",
-                "pdf_path":       pdf_path
+                "year":            year,
+                "title":           title,
+                "authors":         author_str,
+                "doi":             doi,
+                "is_oa":           "1" if is_oa else "0",
+                "oa_pdf_url":      pdf_url or "",
+                "landing_url":     landing_url or "",
+                "pdf_path":        pdf_path
             })
 
         time.sleep(0.3)
