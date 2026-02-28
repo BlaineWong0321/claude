@@ -214,6 +214,7 @@ def main():
                 "title":           title,
                 "authors":         author_str,
                 "doi":             doi,
+                "abstract":        abstract,
                 "is_oa":           "1" if is_oa else "0",
                 "oa_pdf_url":      pdf_url or "",
                 "landing_url":     landing_url or "",
@@ -225,7 +226,7 @@ def main():
     # write outputs
     fieldnames = [
         "tier", "journal", "container_title", "year", "title",
-        "authors", "doi", "is_oa", "oa_pdf_url", "landing_url", "pdf_path"
+        "authors", "doi", "abstract", "is_oa", "oa_pdf_url", "landing_url", "pdf_path"
     ]
     with open(RESULTS_CSV, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
