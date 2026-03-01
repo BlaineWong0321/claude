@@ -1,0 +1,91 @@
+# keywords_belief.txt — Belief Formation Literature
+#
+# Rule:
+#   HARD:   if ANY hard keyword matches in (title + abstract) → KEEP
+#   SOFT:   if ANY soft keyword matches AND ANY anchor keyword matches → KEEP
+#   ANCHORS: used only as the second condition for SOFT keywords
+#
+# Matching is case-insensitive, substring-based (e.g. "stereotyp" catches
+# "stereotype", "stereotypes", "stereotyping", "stereotypical").
+
+[HARD]
+base rate neglect
+baserate neglect
+law of small numbers
+sample size neglect
+gambler's fallacy
+gambler's fallacy
+hot hand
+hot-hand
+wishful thinking
+motivated belief
+motivated beliefs
+motivated reasoning
+motivated scepticism
+cursed equilibrium
+curse of knowledge
+correlation neglect
+selection neglect
+nuisance neglect
+belief bias
+conservatism bias
+representativeness heuristic
+
+[SOFT]
+overinference
+over inference
+over-inference
+overreaction
+over reaction
+over-reaction
+underreaction
+under reaction
+under-reaction
+non-bayesian
+non bayesian
+nonbayesian
+sticky expectations
+inattentive expectations
+diagnostic expectations
+extrapolative expectations
+extrapolative
+extrapolation bias
+over-updating
+over updating
+over-updated
+under-updating
+under updating
+confirmatory bias
+confirmation bias
+stereotype
+stereotyping
+representativeness
+overoptimism
+over-optimism
+motivated reasoning
+
+[ANCHORS]
+belief
+beliefs
+belief formation
+belief updating
+belief update
+updating
+update rule
+posterior
+prior
+bayes
+bayesian
+inference
+infer
+learning
+expectations
+expectation formation
+forecast
+forecasting
+signal
+noisy signal
+information processing
+misperception
+misperceptions
+biased beliefs

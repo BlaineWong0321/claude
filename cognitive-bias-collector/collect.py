@@ -25,7 +25,7 @@ Crossref for authoritative year (per matched paper):
   year - 2), since online-first articles are typically in a print volume 1-2
   years later.
 """
-import csv, json, os, re, time
+import argparse, csv, json, os, re, time
 import requests
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -47,16 +47,60 @@ MAILTO = "your_email@domain.com"
 
 # --- utils ---
 
-def load_keywords():
-    with open(KEYWORDS_TXT, "r", encoding="utf-8") as f:
-        kws = [line.strip().lower() for line in f
-               if line.strip() and not line.strip().startswith("#")]
-    return kws
+def load_keywords(path=None):
+    """Load keywords from a flat or structured (HARD/SOFT/ANCHORS) file.
+
+    Flat format  → returns a list of strings (original behaviour).
+    Structured   → returns a dict with keys 'hard', 'soft', 'anchors'.
+    """
+    if path is None:
+        path = KEYWORDS_TXT
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    # Detect structured format by presence of section headers like [HARD]
+    section_headers = {l.strip() for l in lines
+                       if l.strip().startswith("[") and l.strip().endswith("]")}
+    if section_headers:
+        result = {"hard": [], "soft": [], "anchors": []}
+        mode = None
+        for line in lines:
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            if s == "[HARD]":
+                mode = "hard"
+            elif s == "[SOFT]":
+                mode = "soft"
+            elif s == "[ANCHORS]":
+                mode = "anchors"
+            elif mode:
+                result[mode].append(s.lower())
+        return result
+
+    # Flat format (original keywords.txt)
+    return [l.strip().lower() for l in lines
+            if l.strip() and not l.strip().startswith("#")]
+
 
 def keyword_hit(text, kws):
+    """Return True if text matches the keyword specification.
+
+    kws may be:
+      - a list  → flat mode: True if any keyword is a substring of text
+      - a dict  → structured mode (HARD/SOFT/ANCHORS):
+                  True if any HARD keyword matches, OR
+                  any SOFT keyword matches AND any ANCHOR keyword matches
+    """
     if not text:
         return False
     t = text.lower()
+    if isinstance(kws, dict):
+        if any(kw in t for kw in kws.get("hard", [])):
+            return True
+        if any(kw in t for kw in kws.get("soft", [])):
+            return any(anc in t for anc in kws.get("anchors", []))
+        return False
     return any(kw in t for kw in kws)
 
 def safe_filename(s):
@@ -165,7 +209,22 @@ def download_pdf(url, out_path):
 # --- main ---
 
 def main():
-    os.makedirs(os.path.dirname(RESULTS_CSV), exist_ok=True)
+    parser = argparse.ArgumentParser(description="Collect cognitive-bias papers from OpenAlex.")
+    parser.add_argument("--keywords", default=KEYWORDS_TXT,
+                        help="Path to keywords file (flat or HARD/SOFT/ANCHORS format). "
+                             f"Default: {KEYWORDS_TXT}")
+    parser.add_argument("--output", default=RESULTS_CSV,
+                        help=f"Path for output articles CSV. Default: {RESULTS_CSV}")
+    args = parser.parse_args()
+
+    results_csv  = args.output
+    paywalled_txt = os.path.join(os.path.dirname(results_csv),
+                                 "paywalled_" + os.path.basename(results_csv).replace("articles_", "").replace(".csv", "") + ".txt")
+    # Keep original path for the default case so existing callers are unaffected
+    if args.output == RESULTS_CSV:
+        paywalled_txt = PAYWALLED_TXT
+
+    os.makedirs(os.path.dirname(results_csv), exist_ok=True)
     os.makedirs(PDF_DIR, exist_ok=True)
 
     with open(WINDOW_JSON, "r", encoding="utf-8") as f:
@@ -187,7 +246,7 @@ def main():
     except FileNotFoundError:
         year_overrides = {}
 
-    kws = load_keywords()
+    kws = load_keywords(args.keywords)
 
     journals = []
     with open(JOURNALS_CSV, "r", encoding="utf-8") as f:
@@ -307,16 +366,16 @@ def main():
         "tier", "journal", "container_title", "year", "title",
         "authors", "doi", "abstract", "is_oa", "oa_pdf_url", "landing_url", "pdf_path"
     ]
-    with open(RESULTS_CSV, "w", encoding="utf-8", newline="") as f:
+    with open(results_csv, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
         w.writerows(out_rows)
 
-    with open(PAYWALLED_TXT, "w", encoding="utf-8") as f:
+    with open(paywalled_txt, "w", encoding="utf-8") as f:
         for doi in sorted(set([d for d in paywalled if d])):
             f.write(doi + "\n")
 
-    print(f"\nDone.\n- Metadata: {RESULTS_CSV}\n- Paywalled DOI list: {PAYWALLED_TXT}\n- PDFs (OA only): {PDF_DIR}\n")
+    print(f"\nDone.\n- Metadata: {results_csv}\n- Paywalled DOI list: {paywalled_txt}\n- PDFs (OA only): {PDF_DIR}\n")
 
 
 if __name__ == "__main__":
