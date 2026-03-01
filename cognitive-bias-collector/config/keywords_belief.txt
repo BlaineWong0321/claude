@@ -30,6 +30,14 @@ nuisance neglect
 belief bias
 conservatism bias
 representativeness heuristic
+belief updating
+belief update
+belief formation
+biased beliefs
+bayesian updating
+non-bayesian updating
+misperception
+misperceptions
 
 [SOFT]
 overinference
