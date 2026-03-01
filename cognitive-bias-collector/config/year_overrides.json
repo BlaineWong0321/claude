@@ -1,0 +1,4 @@
+{
+  "_comment": "Manual year corrections for papers where free APIs (Crossref, OpenAlex, Unpaywall) lack the print publication year. Keyed by DOI (lowercase, no https://doi.org/ prefix). Value is the correct journal print year (integer).",
+  "10.1093/restud/rdx081": 2019
+}

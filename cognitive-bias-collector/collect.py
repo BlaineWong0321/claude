@@ -29,12 +29,13 @@ import csv, json, os, re, time
 import requests
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-JOURNALS_CSV  = os.path.join(ROOT, "config", "journals.csv")
-KEYWORDS_TXT  = os.path.join(ROOT, "config", "keywords.txt")
-WINDOW_JSON   = os.path.join(ROOT, "config", "window.json")
-RESULTS_CSV   = os.path.join(ROOT, "results", "articles.csv")
-PAYWALLED_TXT = os.path.join(ROOT, "results", "paywalled.txt")
-PDF_DIR       = os.path.join(ROOT, "pdfs")
+JOURNALS_CSV     = os.path.join(ROOT, "config", "journals.csv")
+KEYWORDS_TXT     = os.path.join(ROOT, "config", "keywords.txt")
+WINDOW_JSON      = os.path.join(ROOT, "config", "window.json")
+YEAR_OVERRIDES   = os.path.join(ROOT, "config", "year_overrides.json")
+RESULTS_CSV      = os.path.join(ROOT, "results", "articles.csv")
+PAYWALLED_TXT    = os.path.join(ROOT, "results", "paywalled.txt")
+PDF_DIR          = os.path.join(ROOT, "pdfs")
 
 CROSSREF_API  = "https://api.crossref.org/works"
 OPENALEX_API  = "https://api.openalex.org/works"
@@ -177,6 +178,15 @@ def main():
     fetch_from_year = date_from_year - 8
     fetch_from = f"{fetch_from_year}{date_from[4:]}"  # e.g. 2010-01-01
 
+    # Manual year corrections for papers where no free API has the print year.
+    # Keys are lowercase DOIs without the https://doi.org/ prefix.
+    try:
+        with open(YEAR_OVERRIDES, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        year_overrides = {k: v for k, v in raw.items() if not k.startswith("_")}
+    except FileNotFoundError:
+        year_overrides = {}
+
     kws = load_keywords()
 
     journals = []
@@ -248,6 +258,10 @@ def main():
             elif oa_year and oa_year < date_from_year:
                 # No DOI and OpenAlex year is before window; skip
                 continue
+
+            # Apply manual year override if present
+            if doi in year_overrides:
+                year = year_overrides[doi]
 
             # --- Unpaywall: find OA PDF ---
             oa          = unpaywall_lookup(doi) if doi else None
