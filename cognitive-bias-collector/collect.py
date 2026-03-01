@@ -30,11 +30,11 @@ import requests
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 JOURNALS_CSV     = os.path.join(ROOT, "config", "journals.csv")
-KEYWORDS_TXT     = os.path.join(ROOT, "config", "keywords.txt")
+KEYWORDS_TXT     = os.path.join(ROOT, "config", "keywords_broad.txt")
 WINDOW_JSON      = os.path.join(ROOT, "config", "window.json")
 YEAR_OVERRIDES   = os.path.join(ROOT, "config", "year_overrides.json")
-RESULTS_CSV      = os.path.join(ROOT, "results", "articles.csv")
-PAYWALLED_TXT    = os.path.join(ROOT, "results", "paywalled.txt")
+RESULTS_CSV      = os.path.join(ROOT, "results", "articles_broad.csv")
+PAYWALLED_TXT    = os.path.join(ROOT, "results", "paywalled_broad.txt")
 PDF_DIR          = os.path.join(ROOT, "pdfs")
 
 CROSSREF_API  = "https://api.crossref.org/works"
